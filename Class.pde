@@ -1,4 +1,3 @@
-// The Boid class
 
 class Person {
 
@@ -16,7 +15,7 @@ class Person {
     // velocity = PVector.random2D();
 
     // Leaving the code temporarily this way so that this example runs in JS
-    float angle = random(TWO_PI);
+    float angle = atan(x/y);
     velocity = new PVector(cos(angle), sin(angle));
 
     position = new PVector(x, y);
@@ -25,8 +24,8 @@ class Person {
     maxforce = 0.03;
   }
 
-  void run(ArrayList<Person> boids) {
-    flock(boids);
+  void run(ArrayList<Person> Persons) {
+    flock(Persons);
     update();
     borders();
     render();
@@ -38,18 +37,22 @@ class Person {
   }
 
   // We accumulate a new acceleration each time based on three rules
-  void flock(ArrayList<Person> boids) {
-    PVector sep = separate(boids);   // Separation
-    PVector ali = align(boids);      // Alignment
-    PVector coh = cohesion(boids);   // Cohesion
+  void flock(ArrayList<Person> Persons) {
+    PVector sep = separate(Persons);   // Separation
+    //PVector ali = align(Persons);      // Alignment
+    //PVector coh = cohesion(Persons);   // Cohesion
+    PVector dir = seek(new PVector(700,261));
     // Arbitrarily weight these forces
     sep.mult(1.5);
-    ali.mult(1.0);
-    coh.mult(1.0);
+    //.mult(1.0);
+    //coh.mult(1.0);
+    dir.mult(1.0);
+    
     // Add the force vectors to acceleration
     applyForce(sep);
-    applyForce(ali);
-    applyForce(coh);
+    applyForce(dir);
+    //applyForce(ali);
+    //applyForce(coh);
   }
 
   // Method to update position
@@ -66,6 +69,8 @@ class Person {
   // A method that calculates and applies a steering force towards a target
   // STEER = DESIRED MINUS VELOCITY
   PVector seek(PVector target) {
+    if (position.y <= 246){target = new PVector(600,246);}
+    if (position.y >= 276){target = new PVector(600,276);}
     PVector desired = PVector.sub(target, position);  // A vector pointing from the position to the target
     // Scale to maximum speed
     desired.normalize();
@@ -74,7 +79,7 @@ class Person {
     // Above two lines of code below could be condensed with new PVector setMag() method
     // Not using this method until Processing.js catches up
     // desired.setMag(maxspeed);
-
+    
     // Steering = Desired minus Velocity
     PVector steer = PVector.sub(desired, velocity);
     steer.limit(maxforce);  // Limit to maximum steering force
@@ -90,7 +95,6 @@ class Person {
     stroke(255);
     pushMatrix();
     translate(position.x, position.y);
-    rotate(theta);
     circle(0,0,15);
     popMatrix();
   }
@@ -102,15 +106,104 @@ class Person {
     if (position.x > width+r) position.x = -r;
     if (position.y > height+r) position.y = -r;
   }
+  
+   void checkCollision(PVector pilar, float radio) {
+
+    // Get distances between the balls components
+    PVector distanceVect = PVector.sub(pilar, position);
+
+    // Calculate magnitude of the vector separating the balls
+    float distanceVectMag = distanceVect.mag();
+
+    // Minimum distance before they are touching
+    float minDistance = r + radio;
+
+    if (distanceVectMag < minDistance) {
+      float distanceCorrection = (minDistance-distanceVectMag)/2.0;
+      PVector d = distanceVect.copy();
+      PVector correctionVector = d.normalize().mult(distanceCorrection);
+      //other.position.add(correctionVector);
+      position.sub(correctionVector);
+
+      // get angle of distanceVect
+      float theta  = distanceVect.heading();
+      // precalculate trig values
+      float sine = sin(theta);
+      float cosine = cos(theta);
+
+      /* bTemp will hold rotated ball positions. You 
+       just need to worry about bTemp[1] position*/
+      PVector[] bTemp = {
+        new PVector(), new PVector()
+      };
+
+      /* this ball's position is relative to the other
+       so you can use the vector between them (bVect) as the 
+       reference point in the rotation expressions.
+       bTemp[0].position.x and bTemp[0].position.y will initialize
+       automatically to 0.0, which is what you want
+       since b[1] will rotate around b[0] */
+      //bTemp[1].x  = cosine * distanceVect.x + sine * distanceVect.y;
+      //bTemp[1].y  = cosine * distanceVect.y - sine * distanceVect.x;
+
+      // rotate Temporary velocities
+      PVector[] vTemp = {
+        new PVector(), new PVector()
+      };
+
+      vTemp[0].x  = cosine * velocity.x + sine * velocity.y;
+      vTemp[0].y  = cosine * velocity.y - sine * velocity.x;
+      //vTemp[1].x  = cosine * other.velocity.x + sine * other.velocity.y;
+      //vTemp[1].y  = cosine * other.velocity.y - sine * other.velocity.x;
+
+      /* Now that velocities are rotated, you can use 1D
+       conservation of momentum equations to calculate 
+       the final velocity along the x-axis. */
+      PVector[] vFinal = {  
+        new PVector(), new PVector()
+      };
+
+      // final rotated velocity for b[0]
+      //vFinal[0].x = ((m - other.m) * vTemp[0].x + 2 * other.m * vTemp[1].x) / (m + other.m);
+      vFinal[0].y = vTemp[0].y;
+
+      // final rotated velocity for b[0]
+      //vFinal[1].x = ((other.m - m) * vTemp[1].x + 2 * m * vTemp[0].x) / (m + other.m);
+      vFinal[1].y = vTemp[1].y;
+
+      // hack to avoid clumping
+      bTemp[0].x += vFinal[0].x;
+      bTemp[1].x += vFinal[1].x;
+
+      /* Rotate ball positions and velocities back
+       Reverse signs in trig expressions to rotate 
+       in the opposite direction */
+      // rotate balls
+      PVector[] bFinal = { 
+        new PVector(), new PVector()
+      };
+
+      bFinal[0].x = cosine * bTemp[0].x - sine * bTemp[0].y;
+      bFinal[0].y = cosine * bTemp[0].y + sine * bTemp[0].x;
+      bFinal[1].x = cosine * bTemp[1].x - sine * bTemp[1].y;
+      bFinal[1].y = cosine * bTemp[1].y + sine * bTemp[1].x;
+
+      // update balls to screen position
+      //other.position.x = position.x + bFinal[1].x;
+      //other.position.y = position.y + bFinal[1].y;
+
+      position.add(bFinal[0]);
+    }
+  }
 
   // Separation
-  // Method checks for nearby boids and steers away
-  PVector separate (ArrayList<Person> boids) {
+  // Method checks for nearby Persons and steers away
+  PVector separate (ArrayList<Person> Persons) {
     float desiredseparation = 25.0f;
     PVector steer = new PVector(0, 0, 0);
     int count = 0;
-    // For every boid in the system, check if it's too close
-    for (Person other : boids) {
+    // For every Person in the system, check if it's too close
+    for (Person other : Persons) {
       float d = PVector.dist(position, other.position);
       // If the distance is greater than 0 and less than an arbitrary amount (0 when you are yourself)
       if ((d > 0) && (d < desiredseparation)) {
@@ -140,58 +233,6 @@ class Person {
       steer.limit(maxforce);
     }
     return steer;
-  }
+}
 
-  // Alignment
-  // For every nearby boid in the system, calculate the average velocity
-  PVector align (ArrayList<Person> boids) {
-    float neighbordist = 50;
-    PVector sum = new PVector(0, 0);
-    int count = 0;
-    for (Person other : boids) {
-      float d = PVector.dist(position, other.position);
-      if ((d > 0) && (d < neighbordist)) {
-        sum.add(other.velocity);
-        count++;
-      }
-    }
-    if (count > 0) {
-      sum.div((float)count);
-      // First two lines of code below could be condensed with new PVector setMag() method
-      // Not using this method until Processing.js catches up
-      // sum.setMag(maxspeed);
-
-      // Implement Reynolds: Steering = Desired - Velocity
-      sum.normalize();
-      sum.mult(maxspeed);
-      PVector steer = PVector.sub(sum, velocity);
-      steer.limit(maxforce);
-      return steer;
-    } 
-    else {
-      return new PVector(0, 0);
-    }
-  }
-
-  // Cohesion
-  // For the average position (i.e. center) of all nearby boids, calculate steering vector towards that position
-  PVector cohesion (ArrayList<Person> boids) {
-    float neighbordist = 50;
-    PVector sum = new PVector(0, 0);   // Start with empty vector to accumulate all positions
-    int count = 0;
-    for (Person other : boids) {
-      float d = PVector.dist(position, other.position);
-      if ((d > 0) && (d < neighbordist)) {
-        sum.add(other.position); // Add position
-        count++;
-      }
-    }
-    if (count > 0) {
-      sum.div(count);
-      return seek(sum);  // Steer towards the position
-    } 
-    else {
-      return new PVector(0, 0);
-    }
-  }
 }

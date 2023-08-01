@@ -4,8 +4,8 @@ void setup() {
   size(700, 500);
   flock = new Flock();
   // Crear grupo inicial de personas en ubicaciones aleatorias.
-  for (int i = 0; i < 150; i++) {
-    float y = randomGaussian()*60;
+  for (int i = 0; i < 10; i++) {
+    float y = random(10,600);
     flock.addPerson(new Person(25,y));
   }
 }
@@ -18,6 +18,7 @@ void draw() {
   line(600,284,0,500);
   circle(200,200,50);
   circle(380,280,30);
+   
   flock.run();
 }
 
